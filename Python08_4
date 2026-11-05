@@ -1,0 +1,81 @@
+import sys
+ 
+#Para começar é pré definido o arquivo de entrada e o arquivo de saida.
+arquivo_entrada = input("Digite o nome do arquivo FASTA: ").strip()
+arquivo_saida = "Python_08.codons-6frames.nt"
+ 
+#Em seguida é criado um dicionario para guardar os nucleotídeos
+#"complemento" é um dicionário que diz qual letra pareia com qual:
+#A com T e C com G.
+seqs = {}
+nome_atual = None 
+ 
+complemento = {"A": "T", "T": "A", "C": "G", "G": "C", "N": "N"}
+ 
+#Abre o arquivo para leitura e se o arquivo não existir, o try/except
+# fecha o programa e imprime a mensagem de erro.
+try:
+    arquivo = open(arquivo_entrada)
+except FileNotFoundError:
+    print(f"Erro: o arquivo '{arquivo_entrada}' não foi encontrado.")
+    sys.exit(1)
+ 
+#Linha que começa com ">" é o cabeçalho e guarda a 1ª palavra e cria
+#uma sequência vazia para ele.Outras linhas são juntadas (+=) à atual.
+with arquivo:
+    for linha in arquivo:
+        linha = linha.strip()
+ 
+#If para ignorar linhas vazias.
+        if linha == "":
+            continue
+ 
+        if linha.startswith(">"):
+            nome_atual = linha[1:].split()[0]
+            seqs[nome_atual] = ""
+        else:
+##Para linha de sequência sem cabeçalho antes, imprimir erro e transformar
+#os nucleotídeos em maiúsculo.
+            if nome_atual is None:
+                print("Erro: o arquivo não está no formato FASTA (falta a linha com '>').")
+                sys.exit(1)
+            seqs[nome_atual] += linha.upper()
+ 
+#Para cada sequência, são  gerados 6 quadros de leitura:
+#quadros 1, 2 e 3 na sequência original
+#quadros 4, 5 e 6 na sequência complemento.
+with open(arquivo_saida, "w") as saida:
+    for nome, sequencia in seqs.items():
+ 
+#para obter o complemento reverso usa reversed para percorrer
+#a sequência de trás para frente e feito a troca de cada letra pela 
+#sua complementar Se aparecer uma letra desconhecida, ela é 
+#mantida como está.
+        comp_reverso = ""
+        for nucleotideo in reversed(sequencia):
+            comp_reverso += complemento.get(nucleotideo, nucleotideo)
+ 
+# Cada quadro começa em uma posição diferente da sequência:
+#quadro 1 começa na primeira letra, quadro 2 começa na segunda letra 
+#e quadro 3 começa na terceira letra.O range anda de 3 em 3 e se sobrarem 1 ou 2 letras no final 
+#elas não formam um códon.
+        for numero_quadro in [1, 2, 3, 4, 5, 6]:
+ 
+            if numero_quadro <= 3:
+                fita = sequencia        # quadros 1 a 3: fita original
+                inicio = numero_quadro - 1
+            else:
+                fita = comp_reverso     # quadros 4 a 6: complemento reverso
+                inicio = numero_quadro - 4
+ 
+            codons = []
+            for i in range(inicio, len(fita) - 2, 3):
+                codons.append(fita[i:i + 3])
+ 
+#Escrever o resultado no arquivo de saída e fazer com que os códons 
+# sejam separados por espaço.
+            saida.write(f"{nome}-frame-{numero_quadro}-codons\n")
+            saida.write(" ".join(codons) + "\n")
+ 
+print(f"Resultado em '{arquivo_saida}'.")
+ 

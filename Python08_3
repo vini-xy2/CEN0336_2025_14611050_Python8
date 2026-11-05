@@ -1,0 +1,61 @@
+import sys
+
+#Para começar é pré definido o arquivo de entrada e o arquivo de saida.
+arquivo_entrada = input("Digite o nome do arquivo FASTA: ").strip()
+arquivo_saida = "Python_08.codons-3frames.nt"
+ 
+#Em seguida é criado um dicionario para guardar a contagem dos 
+#nucleotídeos e uma váriavel para monitorizar qual sequencia esta sendo
+#avaliada.
+seqs = {}
+nome_atual = None  
+ 
+# Abre o arquivo para leitura e se o arquivo não existir, o try/except
+# fecha o programa e imprime a mensagem de erro.
+try:
+    arquivo = open(arquivo_entrada)
+except FileNotFoundError:
+    print(f"Erro: o arquivo '{arquivo_entrada}' não foi encontrado.")
+    sys.exit(1)
+
+#Linha que começa com ">" é o cabeçalho e guarda a 1ª palavra e cria
+#uma sequência vazia para ele.Outras linhas são juntadas (+=) à atual.
+with arquivo:
+    for linha in arquivo:
+        linha = linha.strip()
+ 
+#If para ignorar linhas vazias.
+        if linha == "":
+            continue
+ 
+        if linha.startswith(">"):
+            nome_atual = linha[1:].split()[0]
+            seqs[nome_atual] = ""
+        else:
+##Para linha de sequência sem cabeçalho antes, imprimir erro e transformar
+#os nucleotídeos em maiúsculo.
+            if nome_atual is None:
+                print("Erro: o arquivo não está no formato FASTA (falta a linha com '>').")
+                sys.exit(1)
+            seqs[nome_atual] += linha.upper()
+ 
+# Cada quadro começa em uma posição diferente da sequência:
+#quadro 1 começa na primeira letra, quadro 2 começa na segunda letra 
+#e quadro 3 começa na terceira letra.O range anda de 3 em 3 e se sobrarem 1 ou 2 letras no final 
+#elas não formam um códon.
+with open(arquivo_saida, "w") as saida:
+    for nome, sequencia in seqs.items():
+ 
+        for quadro in [1, 2, 3]:
+            inicio = quadro - 1  # posição onde o quadro começa
+ 
+            codons = []
+            for i in range(inicio, len(sequencia) - 2, 3):
+                codons.append(sequencia[i:i + 3])
+ 
+#Escrever o resultado no arquivo de saída e fazer com que os códons 
+# sejam separados por espaço.
+            saida.write(f"{nome}-frame-{quadro}-codons\n")
+            saida.write(" ".join(codons) + "\n")
+ 
+print(f"Resultado em '{arquivo_saida}'.")
