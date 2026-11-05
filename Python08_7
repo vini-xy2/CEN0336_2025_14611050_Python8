@@ -1,0 +1,156 @@
+import sys
+
+#Para começar é pré definido o arquivo de entrada e os arquivos
+# de saida.
+arquivo_entrada = input("Digite o nome do arquivo FASTA: ").strip()
+arquivo_codons = "Python_08.codons-6frames.nt"
+arquivo_traduzido = "Python_08.translated.aa"
+arquivo_longest = "Python_08.translated-longest.aa"
+arquivo_orf = "Python_08.orf-longest.nt"
+
+#Em seguida é criado um dicionario para guardar os nucleotídeos
+#"complemento" é um dicionário que diz qual letra pareia com qual:
+#A com T e C com G. A"tabela_de_traducao" converte cada códon em um aminoácido.
+seqs = {}
+nome_atual = None
+
+complemento = {"A": "T", "T": "A", "C": "G", "G": "C", "N": "N"}
+
+tabela_de_traducao = {
+    'GCT':'A', 'GCC':'A', 'GCA':'A', 'GCG':'A',
+    'CGT':'R', 'CGC':'R', 'CGA':'R', 'CGG':'R', 'AGA':'R', 'AGG':'R',
+    'AAT':'N', 'AAC':'N',
+    'GAT':'D', 'GAC':'D',
+    'TGT':'C', 'TGC':'C',
+    'CAA':'Q', 'CAG':'Q',
+    'GAA':'E', 'GAG':'E',
+    'GGT':'G', 'GGC':'G', 'GGA':'G', 'GGG':'G',
+    'CAT':'H', 'CAC':'H',
+    'ATT':'I', 'ATC':'I', 'ATA':'I',
+    'TTA':'L', 'TTG':'L', 'CTT':'L', 'CTC':'L', 'CTA':'L', 'CTG':'L',
+    'AAA':'K', 'AAG':'K',
+    'ATG':'M',
+    'TTT':'F', 'TTC':'F',
+    'CCT':'P', 'CCC':'P', 'CCA':'P', 'CCG':'P',
+    'TCT':'S', 'TCC':'S', 'TCA':'S', 'TCG':'S', 'AGT':'S', 'AGC':'S',
+    'ACT':'T', 'ACC':'T', 'ACA':'T', 'ACG':'T',
+    'TGG':'W',
+    'TAT':'Y', 'TAC':'Y',
+    'GTT':'V', 'GTC':'V', 'GTA':'V', 'GTG':'V',
+    'TAA':'*', 'TGA':'*', 'TAG':'*'
+}
+
+#Abre o arquivo para leitura e se o arquivo não existir, o try/except
+# fecha o programa e imprime a mensagem de erro.
+try:
+    arquivo = open(arquivo_entrada)
+except FileNotFoundError:
+    print(f"Erro: o arquivo '{arquivo_entrada}' não foi encontrado.")
+    sys.exit(1)
+
+#Linha que começa com ">" é o cabeçalho e guarda a 1ª palavra e cria
+#uma sequência vazia para ele.Outras linhas são juntadas (+=) à atual.
+with arquivo:
+    for linha in arquivo:
+        linha = linha.strip()
+ 
+#If para ignorar linhas vazias.
+        if linha == "":
+            continue
+ 
+        if linha.startswith(">"):
+            nome_atual = linha[1:].split()[0]
+            seqs[nome_atual] = ""
+        else:
+#Para linha de sequência sem cabeçalho antes, imprimir erro e transformar
+#os nucleotídeos em maiúsculo.
+            if nome_atual is None:
+                print("Erro: o arquivo não está no formato FASTA (falta a linha com '>').")
+                sys.exit(1)
+            seqs[nome_atual] += linha.upper()
+
+
+#para obter o complemento reverso usa reversed para percorrer
+#a sequência de trás para frente e feito a troca de cada letra pela 
+#sua complementar Se aparecer uma letra desconhecida, ela é 
+#mantida como está.
+with open(arquivo_codons, "w") as saida_codons, \
+     open(arquivo_traduzido, "w") as saida_aa, \
+     open(arquivo_longest, "w") as saida_longest, \
+     open(arquivo_orf, "w") as saida_orf:
+
+    for nome, sequencia in seqs.items():
+        comp_reverso = ""
+        for nucleotideo in reversed(sequencia):
+            comp_reverso += complemento.get(nucleotideo, nucleotideo)
+
+#Aqui são criadas variáveis para guardar o maior peptídeo e o 
+#ORF associado
+        maior_peptideo_seq = ""
+        maior_orf_seq = ""
+        maior_peptideo_frame = 0
+#Para cada sequência, são  gerados 6 quadros de leitura:
+#quadros 1, 2 e 3 na sequência original
+#quadros 4, 5 e 6 na sequência complemento.
+        for numero_quadro in [1, 2, 3, 4, 5, 6]:
+            if numero_quadro <= 3:
+                fita = sequencia
+                inicio = numero_quadro - 1
+            else:
+                fita = comp_reverso
+                inicio = numero_quadro - 4
+
+            codons = []
+            for i in range(inicio, len(fita) - 2, 3):
+                codons.append(fita[i:i + 3])
+
+            proteina = ""
+            for codon in codons:
+                proteina += tabela_de_traducao.get(codon, "X")
+
+#Colocar o resultado dos codons e tradução.
+            saida_codons.write(f">{nome}-frame-{numero_quadro}-codons\n")
+            saida_codons.write(" ".join(codons) + "\n")
+
+            saida_aa.write(f">{nome}-frame-{numero_quadro}-aa\n")
+            saida_aa.write(proteina + "\n")
+
+#Para encontrar o maior peptídeo neste frame é dividido a string 
+#da proteína no símbolo Stop '*'.Se existir uma metionina neste 
+#pedaço o sistema encontrará o índice do primeiro 'M' e o peptídeo vai
+#do primeiro 'M' até o final deste pedaço e irá atualizar se este
+# for maior que o recorte atual. Depois é calculado o ORF a partir
+# posição exata deste peptídeo na linha e extraido os códons 
+#correspondentes juntando-os em uma string adicionando ao índice 
+#absoluto. Por fim escreve a maior sequência e seu ORF nos arquivos.
+            idx_absoluto_proteina = 0
+            para_procurar = proteina.split('*')
+            
+            for pedaco in para_procurar:
+                if 'M' in pedaco:
+                    idx_m = pedaco.find('M')
+                    peptideo_candidato = pedaco[idx_m:]
+                    
+                    if len(peptideo_candidato) > len(maior_peptideo_seq):
+                        maior_peptideo_seq = peptideo_candidato
+                        maior_peptideo_frame = numero_quadro
+                        
+                       
+                        inicio_real_prot = idx_absoluto_proteina + idx_m
+                        fim_real_prot = inicio_real_prot + len(peptideo_candidato)
+                        
+
+                        maior_orf_seq = "".join(codons[inicio_real_prot:fim_real_prot])
+
+ 
+                idx_absoluto_proteina += len(pedaco) + 1
+
+
+        if maior_peptideo_seq:
+            saida_longest.write(f">{nome}-longest-frame-{maior_peptideo_frame}\n")
+            saida_longest.write(maior_peptideo_seq + "\n")
+            
+            saida_orf.write(f">{nome}-longest-orf-frame-{maior_peptideo_frame}\n")
+            saida_orf.write(maior_orf_seq + "\n")
+
+print(f"Resultados em '{arquivo_codons}', '{arquivo_traduzido}', '{arquivo_longest}'e '{arquivo_orf}'.")
